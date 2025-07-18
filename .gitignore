@@ -38,3 +38,5 @@ docs/_build/
 # Lockfiles (keep these!)
 # poetry.lock
 # Pipfile.lock
+
+/results

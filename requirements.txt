@@ -1,7 +1,7 @@
 # Allow all backwards-compatible updates, but never jump majors
-trimesh>=3.22.0,<4.0
-numpy>=1.25.0,<2.0
-click>=8.1.0,<9.0
-numba>=0.57.0,<1.0      # Numba is still 0.x, so minor bumps can hide breaking changes—pin carefully
-rich>=13.3.2,<14.0
-pandas>=2.1.0,<3.0
+  trimesh>=4.7.1
+  numpy>=2.3.1
+  click>=8.1.0,<9.0
+  numba>=0.57.0,<1.0
+  rich>=14.0
+  pandas>=2.1.0,<3.0
