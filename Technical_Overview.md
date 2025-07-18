@@ -59,21 +59,22 @@
 ## 🏗 3. High‑Level Module Layout
 
 ```
-aether_py/
-├── aether/
-│   ├── io.py            # mesh loading & cleaning
-│   ├── preprocess.py    # scale normalization & QC
-│   ├── config.py        # radar scenario definitions
-│   ├── extract.py       # specular, edge, tip detection
-│   ├── weight.py        # amplitude weighting
-│   ├── ranking.py       # threshold / top‑k selection
-│   └── export.py        # heatmap & CSV output
-├── cli.py               # click‑based entry point
-├── benchmarks/          # simple scripts & meshes for perf tests
-├── tests/
-│   ├── unit/            # pytest unit tests
-│   └── integration/     # end‑to‑end tests on sample meshes
-└── pyproject.toml
+aether/                ← your repo root
+├── aether/            ← the Python package you’ll import
+│   ├── io.py          ← mesh loading & cleaning routines
+│   ├── preprocess.py  ← scale‑normalization & QC
+│   ├── config.py      ← Radar frequency/Tx‑Rx definitions
+│   ├── extract.py     ← specular/edge/tip detection logic
+│   ├── weight.py      ← amplitude‑weighting functions
+│   ├── ranking.py     ← top‑k or threshold selection
+│   └── export.py      ← heatmap + CSV export
+│
+├── cli.py             ← your `click`‑based entry point
+├── benchmarks/        ← tiny scripts & meshes for performance tests
+├── tests/             ← pytest suites
+│   ├── unit/          ← unit tests for each module
+│   └── integration/   ← end‑to‑end “does it run?” tests
+└── pyproject.toml     ← project metadata / build config
 ```
 
 ---
