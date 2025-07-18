@@ -1,0 +1,40 @@
+# Python artifacts
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+.venv/
+
+# Distribution / packaging
+build/
+dist/
+*.egg-info/
+.wheels/
+pip-wheel-metadata/
+
+# PyInstaller
+*.manifest
+*.spec
+
+# Unit test / coverage
+htmlcov/
+.coverage*
+.pytest_cache/
+
+# Jupyter Notebooks
+.ipynb_checkpoints/
+
+# Docs build
+docs/_build/
+
+# IDEs & editors (minimal)
+.vscode/
+.idea/
+
+# OS files
+.DS_Store
+
+# Lockfiles (keep these!)
+# poetry.lock
+# Pipfile.lock
