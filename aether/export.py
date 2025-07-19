@@ -86,10 +86,21 @@ def create_visualization_mesh(mesh: trimesh.Trimesh, scatterers: List[Dict[str, 
         max_score = scores.max()
         min_score = scores.min()
         
+        # Check if we have a valid range for normalization
+        score_range = max_score - min_score
+        
         # Set colors based on normalized scores
         for scatterer in scatterers:
             face_idx = scatterer['face_idx']
-            normalized_score = (scatterer['score'] - min_score) / (max_score - min_score)
+            
+            # Handle the case where all scores are the same
+            if score_range <= 1e-10:
+                normalized_score = 1.0  # All scores are equal, use max color
+            else:
+                normalized_score = (scatterer['score'] - min_score) / score_range
+            
+            # Safety check for numerical issues
+            normalized_score = np.clip(normalized_score, 0.0, 1.0)
             
             # Create a color from blue (cold) to red (hot) based on score
             # Low scores: blue [0, 0, 255]

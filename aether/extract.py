@@ -107,15 +107,99 @@ def detect_edges(mesh: trimesh.Trimesh, config: RadarConfig) -> List[Dict[str, A
     Returns:
         A list of dictionaries containing edge scatterer information
     """
-    # This is a placeholder for edge detection
-    # In a full implementation, this would:
-    # 1. Identify edges that could create diffraction
-    # 2. Calculate edge vectors and centers
-    # 3. Compute weights using the edge_weight function
-    # 4. Rank and filter the results
+    # 1. Get edges from the mesh
+    edges = mesh.edges
     
-    # For now, return an empty list
-    return []
+    # Skip if no edges (should never happen in a valid mesh)
+    if len(edges) == 0:
+        return []
+    
+    # 2. Calculate edge centers (midpoint of vertices)
+    edge_vertices = mesh.vertices[edges]
+    edge_centers = np.mean(edge_vertices, axis=1)
+    
+    # 3. Calculate edge vectors (direction along edge)
+    edge_vectors = edge_vertices[:, 1, :] - edge_vertices[:, 0, :]
+    edge_lengths = np.linalg.norm(edge_vectors, axis=1)
+    
+    # Normalize edge vectors
+    with np.errstate(divide='ignore', invalid='ignore'):
+        edge_vectors_norm = np.where(
+            edge_lengths[:, np.newaxis] > 0,
+            edge_vectors / edge_lengths[:, np.newaxis],
+            np.zeros_like(edge_vectors)
+        )
+    
+    # 4. Identify unique edges (some may be shared between triangles)
+    unique_edges = np.unique(mesh.edges_sorted, axis=0)
+    unique_edge_map = {}
+    
+    # Create a lookup from original edge indices to unique edge indices
+    for i, edge in enumerate(mesh.edges_sorted):
+        edge_tuple = tuple(edge)
+        if edge_tuple not in unique_edge_map:
+            unique_edge_map[edge_tuple] = i
+    
+    # 5. Identify "sharp" edges (where adjacent faces form significant angles)
+    adjacency = mesh.face_adjacency
+    adjacency_edges = mesh.face_adjacency_edges
+    face_normals = mesh.face_normals
+    
+    # Calculate angles between adjacent faces
+    adjacent_face_normals = face_normals[adjacency]
+    adjacent_norm_dots = np.sum(adjacent_face_normals[:, 0, :] * adjacent_face_normals[:, 1, :], axis=1)
+    
+    # Clip dot products to valid range for arccos
+    adjacent_norm_dots = np.clip(adjacent_norm_dots, -1.0, 1.0)
+    adjacent_angles = np.arccos(adjacent_norm_dots)
+    
+    # Get edges where angle exceeds a threshold (e.g., 30 degrees)
+    diffraction_threshold = np.radians(30)
+    diffracting_edges_mask = adjacent_angles > diffraction_threshold
+    diffracting_edge_indices = np.unique([
+        unique_edge_map.get(tuple(mesh.edges_sorted[i]), i) 
+        for i in adjacency_edges[diffracting_edges_mask]
+    ])
+    
+    # 6. Apply weighting function to these edges
+    from aether.weight import compute_edge_weight
+    edge_weights = compute_edge_weight(
+        edge_vectors_norm[diffracting_edge_indices],
+        edge_centers[diffracting_edge_indices],
+        edge_lengths[diffracting_edge_indices],
+        config
+    )
+    
+    # 7. Create scatterer objects for significant edges
+    # Sort edges by weight
+    sorted_indices = np.argsort(-edge_weights)
+    
+    # Only include edges with non-zero weights
+    positive_mask = edge_weights[sorted_indices] > 0
+    sorted_indices = sorted_indices[positive_mask]
+    
+    # Collect results
+    scatterers = []
+    for i, idx in enumerate(sorted_indices):
+        edge_idx = diffracting_edge_indices[idx]
+        
+        # Only include top edges or those above threshold
+        if i >= 100:
+            break
+            
+        if edge_weights[idx] < 0.01 * edge_weights[sorted_indices[0]]:
+            break
+            
+        scatterers.append({
+            'position': edge_centers[edge_idx].tolist(),
+            'direction': edge_vectors_norm[edge_idx].tolist(),
+            'length': float(edge_lengths[edge_idx]),
+            'score': float(edge_weights[idx]),
+            'type': 'edge',
+            'edge_idx': int(edge_idx)
+        })
+    
+    return scatterers
 
 
 def detect_tips(mesh: trimesh.Trimesh, config: RadarConfig) -> List[Dict[str, Any]]:
@@ -129,14 +213,115 @@ def detect_tips(mesh: trimesh.Trimesh, config: RadarConfig) -> List[Dict[str, An
     Returns:
         A list of dictionaries containing tip scatterer information
     """
-    # This is a placeholder for tip detection
-    # In a full implementation, this would:
-    # 1. Identify vertices that could create tip diffraction
-    # 2. Compute weights using the tip_weight function
-    # 3. Rank and filter the results
+    # 1. Get vertex positions
+    vertex_positions = mesh.vertices
     
-    # For now, return an empty list
-    return []
+    # Skip if no vertices (should never happen in a valid mesh)
+    if len(vertex_positions) == 0:
+        return []
+    
+    # 2. Identify "sharp" vertices that might create tip diffraction
+    # Get faces connected to each vertex
+    vertex_faces = mesh.vertex_faces
+    
+    # Vertices with at least one face
+    valid_vertices = np.any(vertex_faces >= 0, axis=1)
+    
+    # Get vertex normals
+    vertex_normals = np.zeros_like(vertex_positions)
+    face_normals = mesh.face_normals
+    
+    tip_candidates = []
+    vertex_curvatures = []
+    
+    # Find vertices with high curvature (where face normals vary significantly)
+    for i in range(len(mesh.vertices)):
+        if not valid_vertices[i]:
+            continue
+        
+        # Get faces containing this vertex
+        faces = vertex_faces[i]
+        valid_faces = faces[faces >= 0]
+        
+        if len(valid_faces) < 3:
+            continue
+            
+        # Get normals of these faces
+        normals = face_normals[valid_faces]
+        
+        # Calculate average normal
+        avg_normal = np.mean(normals, axis=0)
+        avg_normal_length = np.linalg.norm(avg_normal)
+        
+        # Skip if average normal is zero (perfectly symmetric)
+        if avg_normal_length < 1e-6:
+            continue
+            
+        avg_normal = avg_normal / avg_normal_length
+        
+        # Calculate how much the normals vary (as a measure of curvature)
+        normal_dots = np.sum(normals * avg_normal, axis=1)
+        normal_dots = np.clip(normal_dots, -1.0, 1.0)
+        normal_angles = np.arccos(normal_dots)
+        
+        # Average angle deviation is our curvature measure
+        curvature = np.mean(normal_angles)
+        
+        # If curvature exceeds threshold, it's a tip candidate
+        if curvature > np.radians(30):
+            tip_candidates.append(i)
+            vertex_curvatures.append(curvature)
+            
+            # Store this average normal
+            vertex_normals[i] = avg_normal
+    
+    # Convert to numpy arrays
+    tip_candidates = np.array(tip_candidates)
+    vertex_curvatures = np.array(vertex_curvatures)
+    
+    if len(tip_candidates) == 0:
+        return []
+    
+    # 3. Apply weighting function to candidate vertices
+    from aether.weight import compute_tip_weight
+    tip_weights = compute_tip_weight(
+        vertex_positions[tip_candidates],
+        config
+    )
+    
+    # Scale weights by curvature (higher curvature = stronger diffraction)
+    tip_weights = tip_weights * vertex_curvatures
+    
+    # 4. Create scatterer objects for significant tips
+    # Sort tips by weight
+    sorted_indices = np.argsort(-tip_weights)
+    
+    # Only include tips with non-zero weights
+    positive_mask = tip_weights[sorted_indices] > 0
+    sorted_indices = sorted_indices[positive_mask]
+    
+    # Collect results
+    scatterers = []
+    for i, idx in enumerate(sorted_indices):
+        vertex_idx = tip_candidates[idx]
+        
+        # Only include top tips or those above threshold
+        if i >= 50:  # Fewer tips than edges typically
+            break
+            
+        if tip_weights[idx] < 0.01 * tip_weights[sorted_indices[0]]:
+            break
+            
+        scatterers.append({
+            'position': vertex_positions[vertex_idx].tolist(),
+            'normal': vertex_normals[vertex_idx].tolist(),
+            'curvature': float(vertex_curvatures[idx]),
+            'score': float(tip_weights[idx]),
+            'type': 'tip',
+            'vertex_idx': int(vertex_idx)
+        })
+    
+    return scatterers
 
 
 def extract_all_scatterers(
@@ -166,29 +351,75 @@ def extract_all_scatterers(
         list(config.rx_position)
     )
     
-    scatterers = specular_scatterers
+    # Initialize with specular scatterers
+    scatterers = list(specular_scatterers)  # Create a copy
     
     # Add edge scatterers if enabled
+    edge_scatterers = []
     if proc_config.edge_detection:
-        edge_scatterers = detect_edges(mesh, config)
-        scatterers.extend(edge_scatterers)
+        try:
+            edge_scatterers = detect_edges(mesh, config)
+            scatterers.extend(edge_scatterers)
+            print(f"Detected {len(edge_scatterers)} edge diffraction points")
+        except Exception as e:
+            print(f"Warning: Edge detection failed: {str(e)}")
     
     # Add tip scatterers if enabled
+    tip_scatterers = []
     if proc_config.tip_detection:
-        tip_scatterers = detect_tips(mesh, config)
-        scatterers.extend(tip_scatterers)
+        try:
+            tip_scatterers = detect_tips(mesh, config)
+            scatterers.extend(tip_scatterers)
+            print(f"Detected {len(tip_scatterers)} tip diffraction points")
+        except Exception as e:
+            print(f"Warning: Tip detection failed: {str(e)}")
     
-    # Sort all scatterers by score (descending)
-    scatterers.sort(key=lambda s: s['score'], reverse=True)
+    # Log detection results
+    print(f"Total scatterers detected: {len(scatterers)} "
+          f"(Specular: {len(specular_scatterers)}, "
+          f"Edge: {len(edge_scatterers)}, "
+          f"Tip: {len(tip_scatterers)})")
     
-    # Apply top-k and threshold filtering
+    # If no scatterers found, return empty list
+    if not scatterers:
+        return []
+    
+    # Normalize scores by scatterer type to avoid one mechanism dominating
+    # Find max score for each type
+    if specular_scatterers:
+        specular_max = max(s['score'] for s in specular_scatterers)
+        # Normalize specular scores
+        for s in specular_scatterers:
+            s['normalized_score'] = s['score'] / specular_max
+    
+    if edge_scatterers:
+        edge_max = max(s['score'] for s in edge_scatterers)
+        # Normalize edge scores
+        for s in edge_scatterers:
+            s['normalized_score'] = s['score'] / edge_max * 0.8  # Scale factor for relative importance
+    
+    if tip_scatterers:
+        tip_max = max(s['score'] for s in tip_scatterers)
+        # Normalize tip scores
+        for s in tip_scatterers:
+            s['normalized_score'] = s['score'] / tip_max * 0.6  # Scale factor for relative importance
+    
+    # Sort all scatterers by normalized score (descending)
+    scatterers.sort(key=lambda s: s.get('normalized_score', 0), reverse=True)
+    
+    # Apply top-k filtering
     if len(scatterers) > proc_config.num_top_scatterers:
         scatterers = scatterers[:proc_config.num_top_scatterers]
     
-    # Filter by minimum score if there are any scatterers
+    # Filter by minimum normalized score
     if scatterers:
-        max_score = max(s['score'] for s in scatterers)
-        min_score = max_score * proc_config.min_score_threshold
-        scatterers = [s for s in scatterers if s['score'] >= min_score]
+        max_norm_score = max(s.get('normalized_score', 0) for s in scatterers)
+        min_norm_score = max_norm_score * proc_config.min_score_threshold
+        scatterers = [s for s in scatterers if s.get('normalized_score', 0) >= min_norm_score]
+    
+    # Remove temporary normalized_score field
+    for s in scatterers:
+        if 'normalized_score' in s:
+            del s['normalized_score']
     
     return scatterers
