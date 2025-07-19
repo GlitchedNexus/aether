@@ -130,23 +130,13 @@ def detect_edges(mesh: trimesh.Trimesh, config: RadarConfig) -> List[Dict[str, A
             np.zeros_like(edge_vectors)
         )
     
-    # 4. Identify unique edges (some may be shared between triangles)
-    unique_edges = np.unique(mesh.edges_sorted, axis=0)
-    unique_edge_map = {}
-    
-    # Create a lookup from original edge indices to unique edge indices
-    for i, edge in enumerate(mesh.edges_sorted):
-        edge_tuple = tuple(edge)
-        if edge_tuple not in unique_edge_map:
-            unique_edge_map[edge_tuple] = i
-    
-    # 5. Identify "sharp" edges (where adjacent faces form significant angles)
-    adjacency = mesh.face_adjacency
-    adjacency_edges = mesh.face_adjacency_edges
+    # 4. Simplified approach: Directly find sharp edges using dihedral angles
+    face_adjacency = mesh.face_adjacency  # Pairs of adjacent faces
+    face_adjacency_edges = mesh.face_adjacency_edges  # Edge index shared by each face pair
     face_normals = mesh.face_normals
     
     # Calculate angles between adjacent faces
-    adjacent_face_normals = face_normals[adjacency]
+    adjacent_face_normals = face_normals[face_adjacency]
     adjacent_norm_dots = np.sum(adjacent_face_normals[:, 0, :] * adjacent_face_normals[:, 1, :], axis=1)
     
     # Clip dot products to valid range for arccos
@@ -156,19 +146,53 @@ def detect_edges(mesh: trimesh.Trimesh, config: RadarConfig) -> List[Dict[str, A
     # Get edges where angle exceeds a threshold (e.g., 30 degrees)
     diffraction_threshold = np.radians(30)
     diffracting_edges_mask = adjacent_angles > diffraction_threshold
-    diffracting_edge_indices = np.unique([
-        unique_edge_map.get(tuple(mesh.edges_sorted[i]), i) 
-        for i in adjacency_edges[diffracting_edges_mask]
-    ])
+    
+    # Get the indices of the diffracting edges - these are indices into the face_adjacency_edges array
+    # We need to map them back to indices into the edges array
+    diffraction_indices = np.where(diffracting_edges_mask)[0]
+    
+    # If no diffracting edges found, return empty list
+    if len(diffraction_indices) == 0:
+        return []
+        
+    # Get the actual edge indices
+    edge_indices = []
+    for i in diffraction_indices:
+        # Extract the edge index
+        edge_idx = tuple(sorted(mesh.face_adjacency_edges[i]))
+        
+        # Try to find the matching edge in the mesh.edges
+        try:
+            # Convert mesh.edges to a list of sorted tuples for comparison
+            edges_as_tuples = [tuple(sorted(edge)) for edge in mesh.edges]
+            if edge_idx in edges_as_tuples:
+                edge_indices.append(edges_as_tuples.index(edge_idx))
+        except Exception:
+            continue
+    
+    edge_indices = np.array(edge_indices)
+    
+    # If we don't have valid edge indices, return empty list
+    if len(edge_indices) == 0:
+        return []
     
     # 6. Apply weighting function to these edges
+    # Only calculate weights for valid edges
     from aether.weight import compute_edge_weight
-    edge_weights = compute_edge_weight(
-        edge_vectors_norm[diffracting_edge_indices],
-        edge_centers[diffracting_edge_indices],
-        edge_lengths[diffracting_edge_indices],
-        config
-    )
+    try:
+        edge_vectors_subset = edge_vectors_norm[edge_indices]
+        edge_centers_subset = edge_centers[edge_indices]
+        edge_lengths_subset = edge_lengths[edge_indices]
+        
+        edge_weights = compute_edge_weight(
+            edge_vectors_subset,
+            edge_centers_subset,
+            edge_lengths_subset,
+            config
+        )
+    except Exception as e:
+        print(f"Warning: Edge weight calculation failed: {str(e)}")
+        return []
     
     # 7. Create scatterer objects for significant edges
     # Sort edges by weight
@@ -181,7 +205,7 @@ def detect_edges(mesh: trimesh.Trimesh, config: RadarConfig) -> List[Dict[str, A
     # Collect results
     scatterers = []
     for i, idx in enumerate(sorted_indices):
-        edge_idx = diffracting_edge_indices[idx]
+        edge_idx = edge_indices[idx]
         
         # Only include top edges or those above threshold
         if i >= 100:
@@ -191,9 +215,9 @@ def detect_edges(mesh: trimesh.Trimesh, config: RadarConfig) -> List[Dict[str, A
             break
             
         scatterers.append({
-            'position': edge_centers[edge_idx].tolist(),
-            'direction': edge_vectors_norm[edge_idx].tolist(),
-            'length': float(edge_lengths[edge_idx]),
+            'position': edge_centers_subset[idx].tolist(),
+            'direction': edge_vectors_subset[idx].tolist(),
+            'length': float(edge_lengths_subset[idx]),
             'score': float(edge_weights[idx]),
             'type': 'edge',
             'edge_idx': int(edge_idx)
@@ -359,10 +383,14 @@ def extract_all_scatterers(
     if proc_config.edge_detection:
         try:
             edge_scatterers = detect_edges(mesh, config)
-            scatterers.extend(edge_scatterers)
-            print(f"Detected {len(edge_scatterers)} edge diffraction points")
+            if edge_scatterers:  # Only add if we got valid results
+                scatterers.extend(edge_scatterers)
+                print(f"Detected {len(edge_scatterers)} edge diffraction points")
+            else:
+                print("No edge diffraction points detected")
         except Exception as e:
             print(f"Warning: Edge detection failed: {str(e)}")
+            # Continue with the rest of the analysis without edge detection
     
     # Add tip scatterers if enabled
     tip_scatterers = []
