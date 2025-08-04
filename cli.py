@@ -37,10 +37,12 @@ def cli():
               help="Enable edge diffraction detection.")
 @click.option("--tip-detection/--no-tip-detection", default=False, show_default=True,
               help="Enable tip diffraction detection.")
+@click.option("--face-detection/--no-face-detection", default=False, show_default=True,
+              help="Enable face scattering detection.")
 @click.option("--render-positions/--no-render-positions", default=False, show_default=True,
               help="Render transmitter and receiver positions in output.")
 def analyse(mesh_path, freq, tx, rx, outdir, normalize, top_k, min_threshold,
-          edge_detection, tip_detection, render_positions):
+          edge_detection, tip_detection, face_detection, render_positions):
     """Analyse a mesh and export heatmap + CSV with optional TX/RX visualization."""
     with Progress() as progress:
         task1 = progress.add_task("[green]Loading mesh...", total=1)
@@ -77,7 +79,8 @@ def analyse(mesh_path, freq, tx, rx, outdir, normalize, top_k, min_threshold,
                 num_top_scatterers=top_k,
                 min_score_threshold=min_threshold,
                 edge_detection=edge_detection,
-                tip_detection=tip_detection
+                tip_detection=tip_detection,
+                face_detection=face_detection
             )
             
             # Extract scatterers

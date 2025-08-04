@@ -39,6 +39,7 @@ class ProcessingConfig:
     min_score_threshold: float = 0.01  # Minimum normalized score (relative to max) to keep
     edge_detection: bool = False  # Whether to detect edge diffraction
     tip_detection: bool = False  # Whether to detect tip diffraction
+    face_detection: bool = False  # Whether to detect face scattering
 
 
 def create_radar_config(freq_ghz: float, tx_pos: List[float], rx_pos: List[float]) -> RadarConfig:
@@ -64,7 +65,8 @@ def create_processing_config(
     num_top_scatterers: int = 100,
     min_score_threshold: float = 0.01,
     edge_detection: bool = False,
-    tip_detection: bool = False
+    tip_detection: bool = False,
+    face_detection: bool = False
 ) -> ProcessingConfig:
     """
     Create a processing configuration object.
@@ -74,7 +76,8 @@ def create_processing_config(
         min_score_threshold: Minimum normalized score to keep
         edge_detection: Whether to detect edge diffraction
         tip_detection: Whether to detect tip diffraction
-        
+        face_detection: Whether to detect face scattering
+
     Returns:
         ProcessingConfig object
     """
@@ -82,5 +85,6 @@ def create_processing_config(
         num_top_scatterers=num_top_scatterers,
         min_score_threshold=min_score_threshold,
         edge_detection=edge_detection,
-        tip_detection=tip_detection
+        tip_detection=tip_detection,
+        face_detection=face_detection
     )
