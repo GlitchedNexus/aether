@@ -11,7 +11,7 @@ def test_edge_detection():
     
     # Create a radar configuration
     config = RadarConfig(
-        frequency=10.0,
+        frequency_ghz=10.0,
         tx_position=np.array([100, 0, 50]),
         rx_position=np.array([100, 0, 50])
     )
@@ -43,7 +43,7 @@ def test_edge_detection_with_complex_mesh():
     
     # Create a radar configuration
     config = RadarConfig(
-        frequency=10.0,
+        frequency_ghz=10.0,
         tx_position=np.array([10, 0, 5]),
         rx_position=np.array([10, 0, 5])
     )
