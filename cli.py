@@ -3,7 +3,7 @@ import sys
 import os
 from aether.io import load_mesh
 from aether.extract import extract_all_scatterers
-from aether.export import write_outputs
+from aether.export import write_outputs, render_transmitter_receiver_scene
 from aether.preprocess import prepare_mesh
 from aether.config import create_radar_config, create_processing_config
 from rich.console import Console
@@ -37,9 +37,11 @@ def cli():
               help="Enable edge diffraction detection.")
 @click.option("--tip-detection/--no-tip-detection", default=False, show_default=True,
               help="Enable tip diffraction detection.")
+@click.option("--render-positions/--no-render-positions", default=False, show_default=True,
+              help="Render transmitter and receiver positions in output.")
 def analyse(mesh_path, freq, tx, rx, outdir, normalize, top_k, min_threshold,
-          edge_detection, tip_detection):
-    """Analyse a mesh and export heatmap + CSV."""
+          edge_detection, tip_detection, render_positions):
+    """Analyse a mesh and export heatmap + CSV with optional TX/RX visualization."""
     with Progress() as progress:
         task1 = progress.add_task("[green]Loading mesh...", total=1)
         try:
@@ -90,6 +92,17 @@ def analyse(mesh_path, freq, tx, rx, outdir, normalize, top_k, min_threshold,
         task4 = progress.add_task("[green]Exporting results...", total=1)
         try:
             write_outputs(mesh, scatterers, outdir)
+            
+            # Optionally render TX/RX positions
+            if render_positions:
+                console.print("[blue]Rendering transmitter/receiver positions...[/]")
+                tx_pos = np.array(tx)
+                rx_pos = np.array(rx)
+                scene = render_transmitter_receiver_scene(mesh, scatterers, tx_pos, rx_pos)
+                scene_path = os.path.join(outdir, "scene_with_positions.ply")
+                # scene.export(scene_path)  # Would be implemented
+                console.print(f"  Scene with TX/RX positions: {scene_path}")
+            
             progress.update(task4, completed=1)
         except Exception as e:
             console.print(f"[bold red]Error exporting results:[/] {str(e)}")

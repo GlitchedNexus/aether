@@ -5,7 +5,7 @@ This module handles top-k selection and threshold filtering of scatterers.
 """
 
 import numpy as np
-from typing import List, Dict, Any, Tuple
+from typing import List, Dict, Any, Tuple, Optional
 import trimesh
 from aether.config import ProcessingConfig
 
@@ -20,115 +20,67 @@ def rank_scatterers(
     
     Args:
         mesh: Input mesh
-        weights: Array of weights for each face
+        weights: Array of weights for each face [N,]
         config: Processing configuration
         
     Returns:
         List of dictionaries with scatterer information
     """
-    # Sort faces by weight (descending order)
-    sorted_indices = np.argsort(-weights)
-    
-    # Get the maximum weight for normalization
-    max_weight = weights.max() if len(weights) > 0 else 1.0
-    
-    # Filter and collect results
-    scatterers = []
-    for i, idx in enumerate(sorted_indices):
-        # Stop if we've collected enough scatterers
-        if i >= config.num_top_scatterers:
-            break
-            
-        # Stop if the weight is below threshold
-        if weights[idx] < config.min_score_threshold * max_weight:
-            break
-            
-        # Add this scatterer
-        scatterers.append({
-            'position': mesh.triangles_center[idx].tolist(),
-            'normal': mesh.face_normals[idx].tolist(),
-            'score': float(weights[idx]),
-            'type': 'specular',
-            'face_idx': int(idx)
-        })
-    
-    return scatterers
+    raise NotImplementedError("rank_scatterers not implemented")
 
 
 def top_k_scatterers(
     weights: np.ndarray, 
     k: int,
-    indices: np.ndarray = None
+    indices: Optional[np.ndarray] = None
 ) -> Tuple[np.ndarray, np.ndarray]:
     """
     Get the top k elements by weight.
     
     Args:
-        weights: Array of weights
+        weights: Array of weights [N,]
         k: Number of top elements to return
-        indices: Optional array of original indices
+        indices: Optional array of original indices [N,]
         
     Returns:
         Tuple of (top_k_weights, top_k_indices)
     """
-    if indices is None:
-        indices = np.arange(len(weights))
-        
-    # Get sorted order (descending)
-    sort_idx = np.argsort(-weights)
-    
-    # Get top k
-    k = min(k, len(weights))
-    top_k_idx = sort_idx[:k]
-    
-    return weights[top_k_idx], indices[top_k_idx]
+    raise NotImplementedError("top_k_scatterers not implemented")
 
 
 def threshold_scatterers(
     weights: np.ndarray,
     threshold: float,
-    indices: np.ndarray = None
+    indices: Optional[np.ndarray] = None
 ) -> Tuple[np.ndarray, np.ndarray]:
     """
     Filter scatterers by a threshold value.
     
     Args:
-        weights: Array of weights
+        weights: Array of weights [N,]
         threshold: Threshold value (absolute)
-        indices: Optional array of original indices
+        indices: Optional array of original indices [N,]
         
     Returns:
         Tuple of (filtered_weights, filtered_indices)
     """
-    if indices is None:
-        indices = np.arange(len(weights))
-        
-    # Create mask for weights above threshold
-    mask = weights >= threshold
-    
-    return weights[mask], indices[mask]
+    raise NotImplementedError("threshold_scatterers not implemented")
 
 
 def relative_threshold_scatterers(
     weights: np.ndarray,
     relative_threshold: float,
-    indices: np.ndarray = None
+    indices: Optional[np.ndarray] = None
 ) -> Tuple[np.ndarray, np.ndarray]:
     """
     Filter scatterers by a threshold relative to maximum weight.
     
     Args:
-        weights: Array of weights
-        relative_threshold: Threshold value (relative to maximum)
-        indices: Optional array of original indices
+        weights: Array of weights [N,]
+        relative_threshold: Threshold value (relative to maximum, 0.0-1.0)
+        indices: Optional array of original indices [N,]
         
     Returns:
         Tuple of (filtered_weights, filtered_indices)
     """
-    if len(weights) == 0:
-        return np.array([]), np.array([])
-        
-    max_weight = weights.max()
-    absolute_threshold = max_weight * relative_threshold
-    
-    return threshold_scatterers(weights, absolute_threshold, indices)
+    raise NotImplementedError("relative_threshold_scatterers not implemented")
