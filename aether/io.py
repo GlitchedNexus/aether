@@ -60,7 +60,6 @@ def render_transmitter_receiver_positions(
     mesh: trimesh.Trimesh,
     tx_position: np.ndarray,
     rx_position: np.ndarray,
-    ox_position: np.ndarray,
     scale_factor: float = 0.05
 ) -> trimesh.Scene:
     """
