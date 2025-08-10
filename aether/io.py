@@ -60,6 +60,7 @@ def render_transmitter_receiver_positions(
     mesh: trimesh.Trimesh,
     tx_position: np.ndarray,
     rx_position: np.ndarray,
+    ox_position: np.ndarray,
     scale_factor: float = 0.05
 ) -> trimesh.Scene:
     """
@@ -91,4 +92,12 @@ def load_mesh(path: str) -> trimesh.Trimesh:
         ValueError: If file is not a valid triangle mesh
         RuntimeError: If loading fails for other reasons
     """
-    raise NotImplementedError("load_mesh not implemented")
+    if not os.path.exists(path):
+        raise FileNotFoundError(f"Mesh file not found: {path}")
+
+    mesh = trimesh.load_mesh(path)
+
+    if not mesh.is_watertight:
+        raise ValueError(f"Mesh is not a valid triangle mesh: {path}")
+
+    return mesh

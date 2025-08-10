@@ -5,7 +5,7 @@ This module handles radar frequency/Tx-Rx definitions and any global settings.
 """
 
 from dataclasses import dataclass
-from typing import List, Tuple, Optional
+from typing import List, Tuple
 import numpy as np
 
 
@@ -15,7 +15,7 @@ class RadarConfig:
     frequency_ghz: float  # Radar frequency in GHz
     tx_position: Tuple[float, float, float]  # Transmitter position in XYZ (meters)
     rx_position: Tuple[float, float, float]  # Receiver position in XYZ (meters)
-    
+
     @property
     def wavelength(self) -> float:
         """Calculate wavelength in meters from frequency in GHz."""
@@ -42,7 +42,7 @@ class ProcessingConfig:
     face_detection: bool = False  # Whether to detect face scattering
 
 
-def create_radar_config(freq_ghz: float, tx_pos: List[float], rx_pos: List[float]) -> RadarConfig:
+def create_radar_config(freq_ghz: float, tx_pos: List[float], rx_pos: List[float], ox_pos: List[float]) -> RadarConfig:
     """
     Create a radar configuration object from parameters.
     
@@ -50,14 +50,14 @@ def create_radar_config(freq_ghz: float, tx_pos: List[float], rx_pos: List[float
         freq_ghz: Radar frequency in GHz
         tx_pos: Transmitter position as [x, y, z] in meters
         rx_pos: Receiver position as [x, y, z] in meters
-        
+
     Returns:
         RadarConfig object
     """
     return RadarConfig(
         frequency_ghz=freq_ghz,
         tx_position=(tx_pos[0], tx_pos[1], tx_pos[2]),
-        rx_position=(rx_pos[0], rx_pos[1], rx_pos[2])
+        rx_position=(rx_pos[0], rx_pos[1], rx_pos[2]),
     )
 
 
@@ -87,4 +87,40 @@ def create_processing_config(
         edge_detection=edge_detection,
         tip_detection=tip_detection,
         face_detection=face_detection
+    )
+
+
+@dataclass
+class ObjectConfig:
+    """Configuration class for object parameters."""
+    position: Tuple[float, float, float]  # Object position in XYZ (meters)
+    size: Tuple[float, float, float]      # Object size (width, height, depth) in meters
+    material: str                         # Object material type
+
+    @property
+    def object_pos_array(self) -> np.ndarray:
+        """Get object position as numpy array."""
+        return np.array(self.position)
+    
+
+def create_object_config(
+    position: List[float],
+    size: List[float],
+    material: str
+) -> ObjectConfig:
+    """
+    Create an object configuration object.
+
+    Args:
+        position: Object position as [x, y, z] in meters
+        size: Object size as [width, height, depth] in meters
+        material: Object material type
+
+    Returns:
+        ObjectConfig object
+    """
+    return ObjectConfig(
+        position=(position[0], position[1], position[2]),
+        size=(size[0], size[1], size[2]),
+        material=material
     )
