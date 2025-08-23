@@ -19,7 +19,14 @@ def normalize_mesh(mesh: trimesh.Trimesh) -> trimesh.Trimesh:
     Returns:
         Normalized mesh
     """
-    raise NotImplementedError("normalize_mesh not implemented")
+    # Center the mesh at the origin
+    mesh.apply_translation(-mesh.centroid)
+
+    # Scale the mesh to fit within a unit sphere
+    scale = 1.0 / np.max(mesh.extents)
+    mesh.apply_scale(scale)
+
+    return mesh
 
 
 def check_mesh_quality(mesh: trimesh.Trimesh) -> Dict[str, Any]:
@@ -39,7 +46,18 @@ def check_mesh_quality(mesh: trimesh.Trimesh) -> Dict[str, Any]:
             'has_degenerate_faces': bool,
         }
     """
-    raise NotImplementedError("check_mesh_quality not implemented")
+    quality_report = {
+        'vertex_count': len(mesh.vertices),
+        'face_count': len(mesh.faces),
+        'is_watertight': mesh.is_watertight,
+        'has_duplicate_vertices': np.unique(mesh.vertices, axis=0).shape[0] != mesh.vertices.shape[0],
+        'has_degenerate_faces': np.any(
+            (mesh.faces[:, 0] == mesh.faces[:, 1]) |
+            (mesh.faces[:, 1] == mesh.faces[:, 2]) |
+            (mesh.faces[:, 2] == mesh.faces[:, 0])
+        ),
+    }
+    return quality_report
 
 
 def prepare_mesh(mesh: trimesh.Trimesh, normalize: bool = True) -> Tuple[trimesh.Trimesh, Dict[str, Any]]:
@@ -53,4 +71,9 @@ def prepare_mesh(mesh: trimesh.Trimesh, normalize: bool = True) -> Tuple[trimesh
     Returns:
         Tuple of (prepared_mesh, quality_report)
     """
-    raise NotImplementedError("prepare_mesh not implemented")
+    quality_report = check_mesh_quality(mesh)
+
+    if normalize:
+        mesh = normalize_mesh(mesh)
+
+    return mesh, quality_report
