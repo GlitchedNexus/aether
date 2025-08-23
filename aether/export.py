@@ -55,7 +55,7 @@ def render_transmitter_receiver_scene(
     mesh: trimesh.Trimesh,
     scatterers: List[Dict[str, Any]],
     tx_position: np.ndarray,
-    rx_position: np.ndarray
+    rx_position: np.ndarray,
 ) -> trimesh.Scene:
     """
     Create a 3D scene with mesh, scatterers, and transmitter/receiver positions.
@@ -65,7 +65,7 @@ def render_transmitter_receiver_scene(
         scatterers: List of scatterer data
         tx_position: Transmitter position [x, y, z]
         rx_position: Receiver position [x, y, z]
-        
+
     Returns:
         Scene containing all elements for visualization
     """

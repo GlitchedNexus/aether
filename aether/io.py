@@ -20,7 +20,23 @@ def calculate_face_normals(mesh: trimesh.Trimesh) -> np.ndarray:
     Returns:
         Array of face normal vectors
     """
-    raise NotImplementedError("calculate_face_normals not implemented")
+
+    if mesh.face_normals is None:
+        # Trimesh usually computes face_normals automatically, but if not,
+        # calculate them manually using the vertices of each face.
+        faces = mesh.faces
+        vertices = mesh.vertices
+
+        v0 = vertices[faces[:, 0]]
+        v1 = vertices[faces[:, 1]]
+        v2 = vertices[faces[:, 2]]
+
+        normals = np.cross(v1 - v0, v2 - v0)
+        normals /= np.linalg.norm(normals, axis=1, keepdims=True) + 1e-12
+        mesh.face_normals = normals
+
+    return mesh.face_normals
+
 
 def calculate_face_reflection_direction(
     face_normals: np.ndarray,
@@ -36,7 +52,11 @@ def calculate_face_reflection_direction(
     Returns:
         Array of reflection directions [N, 3]
     """
-    raise NotImplementedError("calculate_face_reflection_direction not implemented")
+
+    incident_direction = incident_direction / np.linalg.norm(incident_direction, axis=-1, keepdims=True)
+    reflection_directions = incident_direction - 2 * np.sum(incident_direction * face_normals, axis=-1, keepdims=True) * face_normals
+
+    return reflection_directions
 
 def find_mesh_intersections(
     mesh: trimesh.Trimesh,
@@ -54,7 +74,20 @@ def find_mesh_intersections(
     Returns:
         Tuple of (intersection_points, face_indices, distances)
     """
-    raise NotImplementedError("find_mesh_intersections not implemented")
+    # Use trimesh's ray intersection capabilities
+    locations, index_ray, index_tri = mesh.ray.intersects_location(
+        ray_origins=ray_origins,
+        ray_directions=ray_directions,
+        multiple_hits=False
+    )
+
+    if len(locations) == 0:
+        return np.empty((0, 3)), np.empty((0,), dtype=int), np.empty((0,))
+
+    # Calculate distances from ray origins to intersection points
+    distances = np.linalg.norm(locations - ray_origins[index_ray], axis=1)
+
+    return locations, index_tri, distances
 
 def render_transmitter_receiver_positions(
     mesh: trimesh.Trimesh,
@@ -74,7 +107,11 @@ def render_transmitter_receiver_positions(
     Returns:
         Scene with mesh and positioned markers
     """
-    raise NotImplementedError("render_transmitter_receiver_positions not implemented")
+    scene = trimesh.Scene()
+    scene.add_geometry(mesh)
+    scene.add_geometry(trimesh.creation.icosphere(radius=scale_factor, center=tx_position))
+    scene.add_geometry(trimesh.creation.icosphere(radius=scale_factor, center=rx_position))
+    return scene
 
 def load_mesh(path: str) -> trimesh.Trimesh:
     """
