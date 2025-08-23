@@ -7,8 +7,7 @@ This module provides mesh loading and cleaning routines.
 import trimesh
 import numpy as np
 import os
-from typing import Tuple, Dict, Any, Optional
-import scipy
+from typing import Tuple
 
 def calculate_face_normals(mesh: trimesh.Trimesh) -> np.ndarray:
     """
