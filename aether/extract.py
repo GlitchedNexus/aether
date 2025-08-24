@@ -6,7 +6,7 @@ This module contains specular/edge/tip detection logic for radar scattering anal
 
 import numpy as np
 import trimesh
-from typing import List, Tuple, Dict, Any, Optional
+from typing import List, Dict, Any, Optional
 from aether.config import RadarConfig, ProcessingConfig
 
 
