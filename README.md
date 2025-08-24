@@ -1,111 +1,173 @@
 # Aether
 
-## 🚀 Project Overview
+## Overview
 
-Aether is a tool for identifying which parts of a 3D drone model contribute most to its radar signature under a given radar illumination geometry. By highlighting dominant “scattering centers” (facets, edges, tips), Aether helps engineers, researchers, and data scientists make informed decisions about signature reduction, sensor placement, and training data generation—without diving into low‑level physics code.
+Aether is an advanced electromagnetic analysis tool for identifying and characterizing radar signature contributions from 3D models. It analyzes geometric features—facets, edges, and tips—to determine their relative contributions to radar cross-section (RCS), enabling informed decisions in signature reduction, sensor placement, and machine learning applications, all without requiring expertise in electromagnetic physics.
 
----
+## Technical Background
 
-## 📚 Background & Relevance
+### Electromagnetic Analysis Capabilities
 
-- **Radar Cross Section (RCS):** A measure of how detectable an object is by radar. Complex drone geometries create multiple scattering centers, complicating both stealth design and detection planning.
-- **Drone Applications:** From military stealth adaptations to commercial counter‑UAS sensors, understanding which airframe features dominate returns can drive targeted design changes.
-- **ML Training:** Annotated scattering‑center data boosts the fidelity of radar‑based machine‑learning models, improving automated threat detection and classification.
+- **Radar Cross Section (RCS) Analysis:** Quantitative assessment of object detectability by radar, accounting for complex scattering effects from geometric features.
+- **High-Frequency Approximation:** Efficient computation using physical optics and geometric theory of diffraction.
+- **Multi-Scale Analysis:** Supports both detailed component-level and full-system evaluations.
 
----
+### Applications
 
-## 🎯 User Stories
+- **Military & Defense:** Signature reduction analysis and stealth design optimization.
+- **Counter-UAS Systems:** Sensor placement and detection range prediction.
+- **Machine Learning:** Training data generation for radar-based classification systems.
+- **Research & Education:** Visualization and analysis of electromagnetic scattering phenomena.
 
-1. **As a Signature‑Reduction Engineer**,
-   I want to see a ranked list of surface patches and edges that produce the strongest radar returns,
-   so that I can selectively apply radar‑absorbent materials or geometric tweaks only where needed.
-2. **As a Counter‑UAS Sensor Designer**,
-   I want to predict detection ranges for common radar bands against a given drone mesh,
-   so that I can size and position my transceivers appropriately.
-3. **As an RCS‑ML Researcher**,
-   I want exportable labels (coordinates + intensity scores) of scattering centers,
-   so that I can train and validate statistical or deep‑learning models.
-4. **As a Systems Integrator**,
-   I want a lightweight command‑line interface that processes a mesh and outputs a heatmap overlay plus a data table,
-   so that I can plug Aether into larger simulation or CI/CD pipelines.
-5. **As an Educator**,
-   I want accessible visualization of how geometry affects radar returns,
-   so that I can demonstrate high‑frequency EM concepts in class or workshops.
+## Core Features
 
----
+### Input Processing
 
-## 📦 MVP Scope
+- Mesh import and validation (STL, OBJ, PLY formats)
+- Geometric integrity verification
+- Automatic mesh preprocessing and quality checks
 
-- **Input:** Import a cleaned 3D mesh file (STL/OBJ/PLY).
-- **Configuration:** Specify one transmit and one receive position plus a radar frequency band.
-- **Extraction:** Identify and rank the top N candidate scatterers (facets, edges, tips).
-- **Output:**
+### Analysis Capabilities
 
-  - A colored heatmap overlay on the mesh (visual .PLY or similar).
-  - A CSV of (x, y, z, score) for the top N scatterers.
+- Radar scenario configuration (frequency, transmitter/receiver geometry)
+- Specular reflection analysis
+- Edge diffraction computation
+- Corner/tip scattering assessment
+- Multi-frequency analysis support
 
-- **Basic UI:** Simple CLI with flags for input path, frequency, geometry, and output folder.
-- **Documentation:** Quick‑start guide and illustrative examples with a reference drone model.
+### Output Generation
 
----
+- Quantitative scatterer ranking
+- Visual heatmap overlays
+- Data export in standard formats (CSV, JSON)
+- 3D visualization support
 
-## 🧪 Types of Tests
+## Technical Specifications
 
-1. **Unit Tests**
+### Performance Metrics
 
-   - Geometry loader handles inverted normals, duplicate vertices, and missing faces.
-   - Scoring algorithms produce expected relative rankings on simple primitives (e.g., flat plate, sphere).
-   - Configuration parser validates frequency, positions, and thresholds.
+- **Processing time:** < 1 minute for 100K triangle meshes
+- **Memory efficiency:** Linear scaling with mesh size
+- **Accuracy:** Validated against analytical solutions
 
-2. **Integration Tests**
+### Quality Assurance
 
-   - End‑to‑end runs on a small reference mesh; output files exist and meet schema.
-   - CLI invocation returns zero exit code and provides meaningful error messages on bad inputs.
+#### Comprehensive Testing
 
-3. **Accuracy & Validation Tests**
+1. **Unit Testing**
 
-   - Compare extracted scatterers and scores against analytical benchmarks (e.g., analytical RCS of a flat plate, sphere).
-   - Cross‑validate against a trusted numerical solver for at least one simple geometry.
+   - Geometry processing validation
+   - Algorithmic correctness verification
+   - Configuration parameter validation
 
-4. **Performance Tests**
+2. **Integration Testing**
 
-   - Measure processing time and memory on meshes of increasing complexity (10K to 1M triangles).
-   - Ensure heatmap export time scales near‑linearly with triangle count.
+   - End-to-end workflow validation
+   - Error handling verification
+   - Output format compliance
 
-5. **Regression Tests**
+3. **Validation Testing**
 
-   - Archive a suite of small meshes and expected CSVs; detect unintended changes in ranking or output format.
+   - Analytical benchmark comparisons
+   - Cross-validation with numerical solvers
+   - Regression testing suite
 
-6. **User Acceptance Tests**
+4. **Performance Testing**
+   - Scalability assessment
+   - Memory usage optimization
+   - Processing time benchmarks
 
-   - Validate that a new user can follow the quick‑start guide to generate a heatmap on a provided sample model.
-   - Gather feedback on command syntax and documentation clarity.
+## Implementation
 
----
+### Architecture
 
-## 🔑 Key (High‑Level) Features
+- Modular design with clear separation of concerns
+- Extensible plugin system for new analysis methods
+- Efficient data structures for large mesh processing
 
-- **Mesh Import & Validation:** Accept common formats and verify geometric integrity.
-- **Radar Scenario Setup:** Flexible input for frequency band and Tx/Rx geometry.
-- **Scatterer Identification:** Automated detection of specular, edge, and corner‑type scattering centers.
-- **Ranking & Filtering:** Threshold or top‑k selection based on user needs.
-- **Export & Visualization:** Data table plus easy‑to‑interpret colored overlay.
-- **Extensible Architecture:** Clearly delineated stages (import → analyze → export) so future methods (e.g., full‑wave solvers) can plug in.
+### Key Components
 
----
+- Command-line interface for automation
 
-## 📈 MVP Success Criteria
+## Getting Started
 
-- **Usability:** New users process a mesh and inspect results within 10 minutes.
-- **Correctness:** Known test cases yield scatterer rankings within an acceptable tolerance of analytical predictions.
-- **Performance:** Meshes up to 100K triangles complete analysis in under 1 minute on a standard workstation.
-- **Stability:** Zero critical bugs in the first 20 public test runs; clear error handling for invalid inputs.
+### Prerequisites- Electromagnetic analysis engine
 
----
+visualization system
 
-## 📝 Glossary
+- Python 3.8+- Command-line interface for automation
+- Required libraries: `numpy`, `trimesh`, `scipy`
+- Sufficient computing resources for target mesh size## Getting Started
 
-- **Scatterer:** A facet, edge, or tip on the mesh that reflects or diffracts radar energy.
-- **Top‑k:** Selecting the k highest‑scoring scatterers by cross‑section.
-- **RCS (Radar Cross Section):** Effective area that quantifies how detectable an object is by radar.
-- **Heatmap Overlay:** Visual mapping of scatterer intensity onto the mesh surface.
+### Installation
+
+````bash- Python 3.8+
+pip install aetherries: numpy, trimesh, scipy
+```- Sufficient computing resources for target mesh size
+
+### Basic Usage
+
+```bash```bash
+aether analyze --input model.stl --freq 10 --tx-pos "0,0,1" --rx-pos "0,1,0"her
+````
+
+## Technical Documentation
+
+### API Reference```
+
+el.stl --freq 10 --tx-pos "0,0,1" --rx-pos "0,1,0"
+
+- Complete documentation of public interfaces```
+- Usage examples and code snippets
+- Best practices and optimization guidelines## Technical Documentation
+
+### Theoretical Background
+
+- Physical optics approximationsComplete documentation of public interfaces
+- Diffraction theory implementationippets
+- Numerical methods employedBest practices and optimization guidelines
+
+## Terminology
+
+### Key ConceptsPhysical optics approximations
+
+eory implementation
+
+- **Scatterer:** Geometric feature contributing to radar reflectionNumerical methods employed
+- **RCS (Radar Cross Section):** Measure of radar detectability
+- **Physical Optics:** High-frequency electromagnetic approximation## Terminology
+- **Diffraction:** Wave interaction with edges and corners
+
+## Performance Criteria
+
+eflection
+
+### Quality MetricsRCS (Radar Cross Section): Measure of radar detectability
+
+requency electromagnetic approximation
+
+- **Accuracy:** < 5% deviation from analytical solutionsDiffraction: Wave interaction with edges and corners
+- **Reliability:** Zero critical failures in production environment
+- **Usability:** < 10 minute learning curve for basic operations## Performance Criteria
+- **Scalability:** Linear performance scaling to 1M+ triangles
+
+## Contributing
+
+### Guidelines- Reliability: Zero critical failures in production environment
+
+10 minute learning curve for basic operations
+
+- Code style and documentation requirements- Scalability: Linear performance scaling to 1M+ triangles
+- Testing procedures and coverage expectations
+- Pull request and review process## Contributing
+- Development environment setup
+  lopment:
+
+## License
+
+requirements
+This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.- Testing procedures and coverage expectations
+
+## License
+
+This project is licensed under MIT license - see the LICENSE file for details
