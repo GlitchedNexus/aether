@@ -4,262 +4,169 @@ Aether Extraction Module
 This module contains specular/edge/tip detection logic for radar scattering analysis.
 """
 
+from __future__ import annotations
+from dataclasses import dataclass
+from typing import Optional, Tuple
 import numpy as np
-import trimesh
-from typing import List, Dict, Any, Optional
-from aether.config import RadarConfig, ProcessingConfig
+
+__all__ = (
+    "SpecularParams",
+    "EdgeParams",
+    "TipParams",
+    "detect_specular",
+    "detect_edges",
+    "detect_tips",
+)
 
 
-def detect_specular_reflection(
-    mesh: trimesh.Trimesh, 
-    freq: float, 
-    tx: List[float], 
-    rx: List[float]
-) -> List[Dict[str, Any]]:
+@dataclass(frozen=True)
+class SpecularParams:
+    """Parameters for specular detection using the bisector test.
+
+    threshold_cos: accept faces where |n·b| > threshold_cos, where b is the
+    unit bisector between incident (tx→face) and reflection (rx→face) directions.
     """
-    Detect specular reflection points on a 3D mesh based on given radar parameters.
-    
-    Args:
-        mesh: A trimesh.Trimesh object representing the 3D model
-        freq: Radar frequency in GHz
-        tx: Transmitter position as [x, y, z] in meters
-        rx: Receiver position as [x, y, z] in meters
-    
-    Returns:
-        A list of dictionaries containing scatterer information:
-        [
-            {
-                'position': [x, y, z],  # Center of the scatterer
-                'normal': [nx, ny, nz],  # Surface normal
-                'score': float,  # Relative intensity/RCS
-                'type': 'specular',  # Type of scattering
-                'face_idx': int,  # Index of the triangle in the mesh
-            },
-            ...
-        ]
+
+    threshold_cos: float = 0.985  # ~10° cone → cos ~ 0.985
+
+
+@dataclass(frozen=True)
+class EdgeParams:
+    """Parameters for edge detection via dihedral angle (in radians)."""
+
+    dihedral_min: float = np.deg2rad(25.0)  # treat edges sharper than this as diffractive
+
+
+@dataclass(frozen=True)
+class TipParams:
+    """Parameters for tip detection via discrete Gaussian curvature (radians)."""
+
+    curvature_min: float = np.deg2rad(120.0)  # large positive curvature ⇒ candidate tip
+
+
+# ---------- helpers ----------
+
+def _as_unit(v: np.ndarray) -> np.ndarray:
+    v = np.asarray(v, dtype=float)
+    n = np.linalg.norm(v, axis=-1, keepdims=True)
+    n = np.clip(n, 1e-12, None)
+    return v / n
+
+
+def _require_attrs(mesh, *names):
+    for n in names:
+        if not hasattr(mesh, n):
+            raise AttributeError(f"mesh is missing attribute {n!r}")
+
+
+# ---------- specular ----------
+
+def detect_specular(
+    *,
+    face_centroids: np.ndarray,
+    face_normals: np.ndarray,
+    tx_pos: np.ndarray,
+    rx_pos: np.ndarray,
+    params: Optional[SpecularParams] = None,
+) -> Tuple[np.ndarray, np.ndarray]:
+    """Detect specular faces.
+
+    Parameters
+    ----------
+    face_centroids : (F,3)
+    face_normals   : (F,3) unit normals (outward)
+    tx_pos, rx_pos : (3,) transmitter / receiver positions
+    params         : SpecularParams
+
+    Returns
+    -------
+    mask : (F,) bool
+        Faces passing the specular bisector test.
+    alignment : (F,) float
+        |n·b| score in [0,1], useful for ranking/specular weighting.
     """
-    mesh = mesh.copy()
-    mesh.apply_scale(1 / 100)  # Convert to meters
-    scatterers = []
+    p = params or SpecularParams()
+    C = np.asarray(face_centroids, dtype=float)
+    N = _as_unit(face_normals)
+    tx = np.asarray(tx_pos, dtype=float)
+    rx = np.asarray(rx_pos, dtype=float)
 
-    for face_idx, face in enumerate(mesh.faces):
-        # Get the vertices of the face
-        vertices = mesh.vertices[face]
-        # Compute the face normal
-        normal = mesh.face_normals[face_idx]
-        # Compute the center of the triangle
-        center = vertices.mean(axis=0)
-
-        # Normalize the normal vector
-        normal = normal / np.linalg.norm(normal)
-
-        # Compute incident and reflected directions
-        tx_vec = np.array(center) - np.array(tx)
-        rx_vec = np.array(center) - np.array(rx)
-        tx_vec /= np.linalg.norm(tx_vec)
-        rx_vec /= np.linalg.norm(rx_vec)
-
-        # Specular reflection condition: reflected TX should align with RX
-        # Reflection direction: r = d - 2*(d·n)*n
-        reflected = tx_vec - 2 * np.dot(tx_vec, normal) * normal
-        alignment = np.dot(reflected, rx_vec)
-        # Clamp alignment to [-1, 1] to avoid numerical issues
-        alignment = np.clip(alignment, -1.0, 1.0)
-
-        # Score: how well the specular condition is met (1 = perfect)
-        score = max(0.0, alignment)
-
-        # Optionally, threshold score to filter out non-specular faces
-        if score > 0.95:  # Adjustable threshold
-            scatterers.append({
-                'position': center.tolist(),
-                'normal': normal.tolist(),
-                'score': float(score),
-                'type': 'specular',
-                'face_idx': int(face_idx)
-            })
-
-    return scatterers
+    v_tx = _as_unit(tx - C)  # direction from face → tx
+    v_rx = _as_unit(rx - C)  # direction from face → rx
+    b = _as_unit(v_tx + v_rx)  # bisector
+    alignment = np.abs(np.einsum("ij,ij->i", N, b))
+    mask = alignment > float(p.threshold_cos)
+    return mask, alignment
 
 
-def detect_edge_diffraction(mesh: trimesh.Trimesh, config: RadarConfig) -> List[Dict[str, Any]]:
+# ---------- edges ----------
+
+def detect_edges(
+    *,
+    edges_face: np.ndarray,
+    face_normals: np.ndarray,
+    params: Optional[EdgeParams] = None,
+) -> Tuple[np.ndarray, np.ndarray]:
+    """Detect diffractive (sharp) edges using dihedral angle between adjacent faces.
+
+    Parameters
+    ----------
+    edges_face : (E,2) int
+        For each edge, the indices of its two incident faces (use -1 for boundary).
+    face_normals : (F,3) unit normals
+    params : EdgeParams
+
+    Returns
+    -------
+    edge_mask : (E,) bool
+        True for edges considered diffractive (sharp).
+    dihedral : (E,) float
+        Dihedral angle in radians for each edge (NaN for boundary edges).
     """
-    Detect edge diffraction points on a 3D mesh.
+    p = params or EdgeParams()
 
-    Args:
-        mesh: A trimesh.Trimesh object representing the 3D model
-        config: Radar configuration
+    EF = np.asarray(edges_face, dtype=int)
+    N = _as_unit(face_normals)
 
-    Returns:
-        A list of dictionaries containing edge scatterer information:
-        [
-            {
-                'position': [x, y, z],  # Center of the edge
-                'direction': [dx, dy, dz],  # Edge direction vector
-                'length': float,  # Length of the edge
-                'score': float,  # Relative intensity/RCS
-                'type': 'edge',  # Type of scattering
-                'edge_idx': int,  # Index of the edge
-            },
-            ...
-        ]
+    E = EF.shape[0]
+    dihedral = np.full(E, np.nan, dtype=float)
+
+    valid = (EF[:, 0] >= 0) & (EF[:, 1] >= 0)
+    f1 = EF[valid, 0]
+    f2 = EF[valid, 1]
+
+    cos_t = np.einsum("ij,ij->i", N[f1], N[f2])
+    cos_t = np.clip(cos_t, -1.0, 1.0)
+    theta = np.arccos(cos_t)
+
+    dihedral[valid] = theta
+    edge_mask = np.zeros(E, dtype=bool)
+    edge_mask[valid] = theta >= float(p.dihedral_min)
+
+    return edge_mask, dihedral
+
+
+# ---------- tips ----------
+
+def detect_tips(
+    *,
+    vertex_curvature: np.ndarray,
+    params: Optional[TipParams] = None,
+) -> np.ndarray:
+    """Detect tip (corner) vertices by thresholding discrete Gaussian curvature.
+
+    Parameters
+    ----------
+    vertex_curvature : (V,) float
+        Discrete Gaussian curvature estimate at each vertex (in radians).
+        (Compute upstream via angle defect: 2π - sum(incident face angles).)
+    params : TipParams
+
+    Returns
+    -------
+    tip_mask : (V,) bool
+        True where curvature >= curvature_min.
     """
-    mesh = mesh.copy()
-    mesh.apply_scale(1 / 100)
-    scatterers = []
-
-    # Use edge_faces for robust face adjacency
-    edge_faces = mesh.edges_face
-    min_length = getattr(config, "min_edge_length", 1e-3)
-
-    for edge_idx, (edge, faces) in enumerate(zip(mesh.edges, edge_faces)):
-        v0, v1 = mesh.vertices[edge]
-        center = (v0 + v1) / 2.0
-        direction_vec = v1 - v0
-        length = np.linalg.norm(direction_vec)
-        if length < min_length or length == 0:
-            continue
-        direction = direction_vec / length
-
-        # Only consider edges with exactly two adjacent faces (manifold)
-        if np.any(faces == -1) or len(faces) != 2:
-            continue
-
-        n0 = mesh.face_normals[faces[0]]
-        n1 = mesh.face_normals[faces[1]]
-        cos_theta = np.clip(np.dot(n0, n1), -1.0, 1.0)
-        theta = np.arccos(cos_theta)
-        # Sharper edges (smaller theta) have higher score
-        score = 1.0 - (theta / np.pi)
-        if score < 0.05:
-            continue
-
-        scatterers.append({
-            'position': center.tolist(),
-            'direction': direction.tolist(),
-            'length': float(length),
-            'score': float(score),
-            'type': 'edge',
-            'edge_idx': int(edge_idx)
-        })
-
-    return scatterers
-
-
-def detect_tip_diffraction(mesh: trimesh.Trimesh, config: RadarConfig) -> List[Dict[str, Any]]:
-    """
-    Detect tip diffraction points on a 3D mesh.
-
-    Args:
-        mesh: A trimesh.Trimesh object representing the 3D model
-        config: Radar configuration
-
-    Returns:
-        A list of dictionaries containing tip scatterer information:
-        [
-            {
-                'position': [x, y, z],  # Position of the tip
-                'normal': [nx, ny, nz],  # Average normal at tip
-                'curvature': float,  # Curvature measure
-                'score': float,  # Relative intensity/RCS
-                'type': 'tip',  # Type of scattering
-                'vertex_idx': int,  # Index of the vertex
-            },
-            ...
-        ]
-    """
-    mesh = mesh.copy()
-    mesh.apply_scale(1 / 100)
-    scatterers = []
-
-    min_curvature = getattr(config, "min_tip_curvature", 0.1)
-
-    for vertex_idx, vertex in enumerate(mesh.vertices):
-        faces = mesh.vertex_faces[vertex_idx]
-        faces = faces[faces != -1]
-        if len(faces) < 2:
-            continue
-
-        normals = mesh.face_normals[faces]
-        avg_normal = np.mean(normals, axis=0)
-        norm = np.linalg.norm(avg_normal)
-        if norm == 0:
-            continue
-        avg_normal /= norm
-
-        # Curvature: mean deviation of face normals from average
-        curvature = np.mean(np.linalg.norm(normals - avg_normal, axis=1))
-        if curvature < min_curvature:
-            continue
-
-        # Score: how much the average normal opposes the vertex normal (sharpness)
-        v_normal = mesh.vertex_normals[vertex_idx]
-        v_normal_norm = np.linalg.norm(v_normal)
-        if v_normal_norm == 0:
-            continue
-        v_normal /= v_normal_norm
-        score = max(0.0, 1.0 - np.dot(avg_normal, v_normal))
-
-        scatterers.append({
-            'position': vertex.tolist(),
-            'normal': avg_normal.tolist(),
-            'curvature': float(curvature),
-            'score': float(score),
-            'type': 'tip',
-            'vertex_idx': int(vertex_idx)
-        })
-
-    return scatterers
-
-
-def extract_all_scatterers(
-    mesh: trimesh.Trimesh,
-    radar_config: RadarConfig,
-    proc_config: Optional[ProcessingConfig] = None
-) -> List[Dict[str, Any]]:
-    """
-    Extract all types of scatterers from a mesh based on configuration.
-    
-    Args:
-        mesh: Input mesh
-        radar_config: Radar configuration containing frequency and TX/RX positions
-        proc_config: Processing configuration (optional)
-        
-    Returns:
-        List of all scatterers (specular, edges, tips) sorted by importance
-    """
-    if proc_config is None:
-        proc_config = ProcessingConfig()
-
-    scatterers = []
-
-    if proc_config.face_detection:
-        speculars = detect_specular_reflection(
-            mesh, radar_config.frequency_ghz, list(radar_config.tx_position), list(radar_config.rx_position)
-        )
-        scatterers.extend(speculars)
-
-    if proc_config.edge_detection:
-        edges = detect_edge_diffraction(mesh, radar_config)
-        scatterers.extend(edges)
-
-    if proc_config.tip_detection:
-        tips = detect_tip_diffraction(mesh, radar_config)
-        scatterers.extend(tips)
-
-    # Normalize scores and filter based on config
-    if scatterers:
-        max_score = max(s['score'] for s in scatterers)
-        for s in scatterers:
-            s['score'] /= max_score  # Normalize to [0, 1]
-
-        # Filter by minimum score threshold
-        scatterers = [s for s in scatterers if s['score'] >= proc_config.min_score_threshold]
-
-        # Sort by score descending
-        scatterers.sort(key=lambda x: x['score'], reverse=True)
-
-        # Keep only top K scatterers
-        scatterers = scatterers[:proc_config.num_top_scatterers]
-
-    return scatterers
+    p = params or TipParams()
+    k = np.asarray(vertex_curvature, dtype=float)
+    return k >= float(p.curvature_min)
