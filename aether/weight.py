@@ -5,7 +5,6 @@ This module contains amplitude-weighting functions for different scattering mech
 """
 
 import numpy as np
-from typing import List, Tuple, Dict, Any
 from aether.config import RadarConfig
 
 
