@@ -5,7 +5,7 @@ Extended unit tests for the extract module.
 import pytest
 import numpy as np
 import trimesh
-from aether.extract import detect_specular, detect_edges, detect_tips, extract_all_scatterers
+from aether.extract import detect_specular, detect_edge_diffraction, detect_tips, extract_all_scatterers
 from aether.config import RadarConfig, ProcessingConfig
 
 
@@ -61,7 +61,7 @@ def test_detect_edges_simple_box():
     )
     
     with pytest.raises(NotImplementedError):
-        edge_scatterers = detect_edges(mesh, config)
+        edge_scatterers = detect_edge_diffraction(mesh, config)
 
 
 def test_detect_edges_cylinder():
@@ -75,7 +75,7 @@ def test_detect_edges_cylinder():
     )
     
     with pytest.raises(NotImplementedError):
-        edge_scatterers = detect_edges(mesh, config)
+        edge_scatterers = detect_edge_diffraction(mesh, config)
 
 
 def test_detect_edges_no_sharp_edges():
@@ -90,7 +90,7 @@ def test_detect_edges_no_sharp_edges():
     )
     
     with pytest.raises(NotImplementedError):
-        edge_scatterers = detect_edges(mesh, config)
+        edge_scatterers = detect_edge_diffraction(mesh, config)
 
 
 def test_detect_tips_pyramid():

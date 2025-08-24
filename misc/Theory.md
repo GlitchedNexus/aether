@@ -26,9 +26,9 @@ This document outlines the core theoretical concepts behind radar scattering ana
 **Implementation**:
 
 - `extract.py` contains separate detectors for each mechanism:
-  - `detect_specular()` finds surfaces with normals aligned to the bisector
-  - `detect_edges()` identifies sharp edges using adjacency information
-  - `detect_tips()` finds vertices with high curvature (multiple incident edges)
+  - `detect_specular_reflection()` finds surfaces with normals aligned to the bisector
+  - `detect_edge_diffraction()` identifies sharp edges using adjacency information
+  - `detect_tip_diffraction()` finds vertices with high curvature (multiple incident edges)
 
 ## 2. Geometric Optics & Physical Optics
 

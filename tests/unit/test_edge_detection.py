@@ -1,7 +1,7 @@
 import pytest
 import numpy as np
 import trimesh
-from aether.extract import detect_edges
+from aether.extract import detect_edge_diffraction
 from aether.config import RadarConfig
 
 def test_edge_detection():
@@ -17,7 +17,7 @@ def test_edge_detection():
     )
     
     # Detect edges
-    edges = detect_edges(cube, config)
+    edges = detect_edge_diffraction(cube, config)
     
     # Check that edges were detected
     assert len(edges) > 0
@@ -49,7 +49,7 @@ def test_edge_detection_with_complex_mesh():
     )
     
     # Detect edges
-    edges = detect_edges(mesh, config)
+    edges = detect_edge_diffraction(mesh, config)
     
     # Check that edges were detected
     assert len(edges) > 0
@@ -58,7 +58,7 @@ def test_edge_detection_with_complex_mesh():
     config.tx_position = np.array([-10, 5, 0])
     config.rx_position = np.array([-10, 5, 0])
     
-    edges2 = detect_edges(mesh, config)
+    edges2 = detect_edge_diffraction(mesh, config)
     
     # Scores should be different based on radar position
     if len(edges) > 0 and len(edges2) > 0:

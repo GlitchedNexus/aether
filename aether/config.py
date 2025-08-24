@@ -12,7 +12,7 @@ import numpy as np
 @dataclass
 class RadarConfig:
     """Configuration class for radar parameters."""
-    frequency_ghz: float  # Radar frequency in GHz
+    frequency_ghz: float                     # Radar frequency in GHz
     tx_position: Tuple[float, float, float]  # Transmitter position in XYZ (meters)
     rx_position: Tuple[float, float, float]  # Receiver position in XYZ (meters)
 
@@ -35,11 +35,13 @@ class RadarConfig:
 @dataclass
 class ProcessingConfig:
     """Configuration for processing parameters."""
-    num_top_scatterers: int = 100  # Number of top scatterers to retain
-    min_score_threshold: float = 0.01  # Minimum normalized score (relative to max) to keep
-    edge_detection: bool = False  # Whether to detect edge diffraction
-    tip_detection: bool = False  # Whether to detect tip diffraction
-    face_detection: bool = False  # Whether to detect face scattering
+    num_top_scatterers: int = 100        # Number of top scatterers to retain
+    min_score_threshold: float = 0.01    # Minimum normalized score (relative to max) to keep
+    edge_detection: bool = False         # Whether to detect edge diffraction
+    tip_detection: bool = False          # Whether to detect tip diffraction
+    face_detection: bool = False         # Whether to detect face scattering
+    min_edge_length: float = 1e-3       # Minimum edge length to consider (meters)
+    min_tip_curvature: float = 0.1      # Minimum tip curvature to consider
 
 
 def create_radar_config(freq_ghz: float, tx_pos: List[float], rx_pos: List[float], ox_pos: List[float]) -> RadarConfig:
